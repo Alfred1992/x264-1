@@ -33,11 +33,23 @@
 .fpu neon
 #endif
 
+#define GLUE(a, b) a ## b
+#define JOIN(a, b) GLUE(a, b)
+
 #ifdef PREFIX
-#   define EXTERN_ASM _x264_
+#   define BASE _x264_
 #else
-#   define EXTERN_ASM x264_
+#   define BASE x264_
 #endif
+
+#ifdef BIT_DEPTH
+#   define EXTERN_ASM JOIN(JOIN(BASE, BIT_DEPTH), _)
+#else
+#   define EXTERN_ASM BASE
+#endif
+
+#define X(s) JOIN(EXTERN_ASM, s)
+#define X264(s) JOIN(BASE, s)
 
 #ifdef __ELF__
 #   define ELF
@@ -172,10 +184,6 @@ MACH    .const_data
     ldr         \rd, =\val
 #endif
 .endm
-
-#define GLUE(a, b) a ## b
-#define JOIN(a, b) GLUE(a, b)
-#define X(s) JOIN(EXTERN_ASM, s)
 
 #define FENC_STRIDE 16
 #define FDEC_STRIDE 32

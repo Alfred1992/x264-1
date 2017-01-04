@@ -117,6 +117,25 @@ do {\
 #include <assert.h>
 #include <limits.h>
 
+/****************************************************************************
+ * API Templates
+ ****************************************************************************/
+#define x264_nal_encode x264_template(nal_encode)
+#define x264_encoder_reconfig x264_template(encoder_reconfig)
+#define x264_encoder_parameters x264_template(encoder_parameters)
+#define x264_encoder_headers x264_template(encoder_headers)
+#define x264_encoder_encode x264_template(encoder_encode)
+#define x264_encoder_close x264_template(encoder_close)
+#define x264_encoder_delayed_frames x264_template(encoder_delayed_frames)
+#define x264_encoder_maximum_delayed_frames x264_template(encoder_maximum_delayed_frames)
+#define x264_encoder_intra_refresh x264_template(encoder_intra_refresh)
+#define x264_encoder_invalidate_reference x264_template(encoder_invalidate_reference)
+
+/* This undef allows to rename the external symbol and force link failure in case
+ * of incompatible libraries. Then the define enables templating as above. */
+#undef x264_encoder_open
+#define x264_encoder_open x264_template(encoder_open)
+
 #if HAVE_INTERLACED
 #   define MB_INTERLACED h->mb.b_interlaced
 #   define SLICE_MBAFF h->sh.b_mbaff
@@ -176,8 +195,6 @@ typedef union { x264_uint128_t i; uint64_t a[2]; uint32_t b[4]; uint16_t c[8]; u
 #   define PIXEL_SPLAT_X4(x) ((x)*0x01010101U)
 #   define MPIXEL_X4(src) M32(src)
 #endif
-
-#define BIT_DEPTH X264_BIT_DEPTH
 
 #define CPPIXEL_X4(dst,src) MPIXEL_X4(dst) = MPIXEL_X4(src)
 
@@ -250,9 +267,12 @@ static const uint8_t x264_scan8[16*3 + 3] =
 char *x264_param2string( x264_param_t *p, int b_res );
 
 /* log */
+#define x264_log x264_template(log)
 void x264_log( x264_t *h, int i_level, const char *psz_fmt, ... );
 
+#define x264_cavlc_init x264_template(cavlc_init)
 void x264_cavlc_init( x264_t *h );
+#define x264_cabac_init x264_template(cabac_init)
 void x264_cabac_init( x264_t *h );
 
 static ALWAYS_INLINE pixel x264_clip_pixel( int x )

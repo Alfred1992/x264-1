@@ -338,8 +338,8 @@ static void print_version_info( void )
 #else
     printf( "using an unknown compiler\n" );
 #endif
-    printf( "x264 configuration: --bit-depth=%d --chroma-format=%s\n", X264_BIT_DEPTH, chroma_format_names[X264_CHROMA_FORMAT] );
-    printf( "libx264 configuration: --bit-depth=%d --chroma-format=%s\n", x264_bit_depth, chroma_format_names[x264_chroma_format] );
+    printf( "x264 configuration: --chroma-format=%s\n", chroma_format_names[X264_CHROMA_FORMAT] );
+    printf( "libx264 configuration: --chroma-format=%s\n", chroma_format_names[x264_chroma_format] );
     printf( "x264 license: " );
 #if HAVE_GPL
     printf( "GPL version 2 or later\n" );
@@ -490,7 +490,7 @@ static void help( x264_param_t *defaults, int longhelp )
         " .mkv -> Matroska\n"
         " .flv -> Flash Video\n"
         " .mp4 -> MP4 if compiled with GPAC or L-SMASH support (%s)\n"
-        "Output bit depth: %d (configured at compile time)\n"
+        "Output bit depth: %s\n."
         "\n"
         "Options:\n"
         "\n"
@@ -521,7 +521,13 @@ static void help( x264_param_t *defaults, int longhelp )
 #else
         "no",
 #endif
-        x264_bit_depth
+#if HAVE_BITDEPTH8 && HAVE_BITDEPTH10
+        "8/10"
+#elif HAVE_BITDEPTH8
+        "8"
+#elif HAVE_BITDEPTH10
+        "10"
+#endif
       );
     H0( "Example usage:\n" );
     H0( "\n" );
@@ -547,7 +553,6 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  Overrides all settings.\n" );
     H2(
 #if X264_CHROMA_FORMAT <= X264_CSP_I420
-#if X264_BIT_DEPTH==8
         "                                  - baseline:\n"
         "                                    --no-8x8dct --bframes 0 --no-cabac\n"
         "                                    --cqm flat --weightp 0\n"
@@ -558,7 +563,6 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                    No lossless.\n"
         "                                  - high:\n"
         "                                    No lossless.\n"
-#endif
         "                                  - high10:\n"
         "                                    No lossless.\n"
         "                                    Support for bit depth 8-10.\n"
@@ -575,10 +579,7 @@ static void help( x264_param_t *defaults, int longhelp )
         else H0(
         "                                  - "
 #if X264_CHROMA_FORMAT <= X264_CSP_I420
-#if X264_BIT_DEPTH==8
-        "baseline,main,high,"
-#endif
-        "high10,"
+        "baseline,main,high,high10,"
 #endif
 #if X264_CHROMA_FORMAT <= X264_CSP_I422
         "high422,"
@@ -891,6 +892,7 @@ static void help( x264_param_t *defaults, int longhelp )
     H1( "      --output-csp <string>   Specify output colorspace [\"%s\"]\n"
         "                                  - %s\n", output_csp_names[0], stringify_names( buf, output_csp_names ) );
     H1( "      --input-depth <integer> Specify input bit depth for raw input\n" );
+    H1( "      --output-depth <integer> Specify output bit depth\n" );
     H1( "      --input-range <string>  Specify input color range [\"%s\"]\n"
         "                                  - %s\n", range_names[0], stringify_names( buf, range_names ) );
     H1( "      --input-res <intxint>   Specify input resolution (width x height)\n" );
@@ -979,6 +981,7 @@ typedef enum
     OPT_INPUT_RES,
     OPT_INPUT_CSP,
     OPT_INPUT_DEPTH,
+    OPT_OUTPUT_DEPTH,
     OPT_DTS_COMPRESSION,
     OPT_OUTPUT_CSP,
     OPT_INPUT_RANGE,
@@ -1146,6 +1149,7 @@ static struct option long_options[] =
     { "input-res",   required_argument, NULL, OPT_INPUT_RES },
     { "input-csp",   required_argument, NULL, OPT_INPUT_CSP },
     { "input-depth", required_argument, NULL, OPT_INPUT_DEPTH },
+    { "output-depth", required_argument, NULL, OPT_OUTPUT_DEPTH },
     { "dts-compress",      no_argument, NULL, OPT_DTS_COMPRESSION },
     { "output-csp",  required_argument, NULL, OPT_OUTPUT_CSP },
     { "input-range", required_argument, NULL, OPT_INPUT_RANGE },
@@ -1321,10 +1325,11 @@ static int init_vid_filters( char *sequence, hnd_t *handle, video_info_t *info, 
     if( x264_init_vid_filter( "resize", handle, &filter, info, param, NULL ) )
         return -1;
 
-    char args[20];
-    sprintf( args, "bit_depth=%d", x264_bit_depth );
+    char args[20], name[20];
+    sprintf( args, "bit_depth=%d", param->i_bitdepth );
+    sprintf( name, "depth_%d", param->i_bitdepth );
 
-    if( x264_init_vid_filter( "depth", handle, &filter, info, param, args ) )
+    if( x264_init_vid_filter( name, handle, &filter, info, param, args ) )
         return -1;
 
     return 0;
@@ -1523,6 +1528,9 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_INPUT_DEPTH:
                 input_opt.bit_depth = atoi( optarg );
                 break;
+            case OPT_OUTPUT_DEPTH:
+                param->i_bitdepth = atoi( optarg );
+                break;
             case OPT_DTS_COMPRESSION:
                 output_opt.use_dts_compress = 1;
                 break;
@@ -1634,6 +1642,17 @@ generic_option:
 
     /* init threaded input while the information about the input video is unaltered by filtering */
 #if HAVE_THREAD
+    cli_input_t thread_input;
+    if (param->i_bitdepth == 8) {
+#if HAVE_BITDEPTH8
+        thread_input = thread_8_input;
+#endif
+    } else {
+#if HAVE_BITDEPTH10
+        thread_input = thread_10_input;
+#endif
+    }
+
     if( info.thread_safe && (b_thread_input || param->i_threads > 1
         || (param->i_threads == X264_THREADS_AUTO && x264_cpu_num_processors() > 1)) )
     {

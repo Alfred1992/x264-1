@@ -1,9 +1,10 @@
 /*****************************************************************************
- * common.c: misc common functions
+ * vlc.h: vlc type
  *****************************************************************************
  * Copyright (C) 2003-2017 x264 project
  *
  * Authors: Loren Merritt <lorenm@u.washington.edu>
+ *          Fiona Glaser <fiona@x264.com>
  *          Laurent Aimar <fenrir@via.ecp.fr>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,25 +25,13 @@
  * For more information, contact us at licensing@x264.com.
  *****************************************************************************/
 
-#include "common.h"
+#ifndef X264_VLC_H
+#define X264_VLC_H
 
-const int x264_bit_depth = BIT_DEPTH;
-
-const int x264_chroma_format = X264_CHROMA_FORMAT;
-
-/****************************************************************************
- * x264_log:
- ****************************************************************************/
-void x264_log( x264_t *h, int i_level, const char *psz_fmt, ... )
+typedef struct
 {
-    if( !h || i_level <= h->param.i_log_level )
-    {
-        va_list arg;
-        va_start( arg, psz_fmt );
-        if( !h )
-            x264_log_default( NULL, i_level, psz_fmt, arg );
-        else
-            h->param.pf_log( h->param.p_log_private, i_level, psz_fmt, arg );
-        va_end( arg );
-    }
-}
+    uint8_t i_bits;
+    uint8_t i_size;
+} vlc_t;
+
+#endif
